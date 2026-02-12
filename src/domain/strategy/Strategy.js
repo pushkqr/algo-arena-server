@@ -1,7 +1,7 @@
 const StrategyContract = {
-  reset: 'config',
-  observe: 'observation',
-  act: 'action'
+  reset: "function",
+  observe: "function",
+  act: "function",
 };
 
 module.exports = StrategyContract;

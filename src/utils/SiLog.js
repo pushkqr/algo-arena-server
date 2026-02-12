@@ -1,9 +1,9 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-const LOG_AND_PRINT = 'both';
-const LOG_ONLY = 'log';
-const PRINT_ONLY = 'print';
+const LOG_AND_PRINT = "both";
+const LOG_ONLY = "log";
+const PRINT_ONLY = "print";
 
 let _mode = LOG_AND_PRINT;
 let _fileStream = null;
@@ -21,16 +21,20 @@ function _openStream(logDir, logFile) {
   const full = path.join(logDir, logFile);
   if (_fileStream && _logPath === full) return;
   if (_fileStream) {
-    try { _fileStream.end(); } catch (e) { /* ignore */ }
+    try {
+      _fileStream.end();
+    } catch (e) {
+      /* ignore */
+    }
     _fileStream = null;
   }
   _ensureDir(logDir);
-  _fileStream = fs.createWriteStream(full, { flags: 'a' });
+  _fileStream = fs.createWriteStream(full, { flags: "a" });
   _logPath = full;
 }
 
 function _format(msg) {
-  return String(msg) + '\n';
+  return String(msg) + "\n";
 }
 
 function Configure(logDir, logFile, mode) {
@@ -41,7 +45,7 @@ function Configure(logDir, logFile, mode) {
 }
 
 function NewLine() {
-  Message('');
+  Message("");
 }
 
 function Message(msg) {
@@ -55,18 +59,22 @@ function Message(msg) {
 }
 
 function Error(err) {
-  const text = 'ERROR [' + String(err) + ']';
+  const text = "ERROR [" + String(err) + "]";
   if (_mode === LOG_AND_PRINT || _mode === PRINT_ONLY) {
     console.error(text);
   }
   if ((_mode === LOG_AND_PRINT || _mode === LOG_ONLY) && _fileStream) {
     _fileStream.write(_format(text));
   }
+}
+
+function Fatal(err) {
+  Error(err);
   process.exit(1);
 }
 
 function Unsupported(val) {
-  const text = 'unsupported [' + String(val) + ']';
+  const text = "unsupported [" + String(val) + "]";
   if (_mode === LOG_AND_PRINT || _mode === PRINT_ONLY) {
     console.error(text);
   }
@@ -77,7 +85,7 @@ function Unsupported(val) {
 }
 
 function KeyVal(key, val) {
-  Message(String(key) + ' [' + String(val) + ']');
+  Message(String(key) + " [" + String(val) + "]");
 }
 
 module.exports = {
