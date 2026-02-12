@@ -3,10 +3,17 @@ const EvaluationContract = {
   seed: "string",
   rounds: "number",
   poolSize: "number",
-  poolCount: "number",
   episodesPerPool: "number",
   agents: "array",
   shuffle: "boolean",
+  envName: "string",
 };
 
-module.exports = EvaluationContract;
+const PoolContract = {
+  evaluationId: "string",
+  seed: "string",
+  poolSize: "number",
+  agents: "array",
+};
+
+module.exports = { EvaluationContract, PoolContract };

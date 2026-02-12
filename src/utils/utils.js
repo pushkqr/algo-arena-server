@@ -1,7 +1,7 @@
 const validateShape = function (candidate, contract, errorTemplate) {
   const fail = (key) => {
     throw new Error(
-      (errorTemplate || `Invalid shape for \${method}`).replace(
+      (errorTemplate || `Invalid shape for ${key}`).replace(
         /\$\{method\}/g,
         key,
       ),

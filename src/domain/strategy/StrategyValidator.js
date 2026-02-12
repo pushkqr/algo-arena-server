@@ -1,5 +1,5 @@
 const StrategyContract = require("./Strategy");
-const validateShape = require("../../utils/utils");
+const { validateShape } = require("../../utils/utils");
 
 const StrategyValidator = {
   validateStrategy(name, module) {
