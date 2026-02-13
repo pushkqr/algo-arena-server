@@ -6,7 +6,6 @@ const EvaluationContract = {
   episodesPerPool: "number",
   agents: "array",
   shuffle: "boolean",
-  envName: "string",
 };
 
 const PoolContract = {

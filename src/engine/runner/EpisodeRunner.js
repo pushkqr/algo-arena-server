@@ -356,18 +356,39 @@ async function runEpisode(opts = {}) {
       ? Number(a._startingBudget)
       : null;
 
+    const obsRemaining =
+      finalObservations[a.id] &&
+      Number.isFinite(Number(finalObservations[a.id].remainingBudget))
+        ? Number(finalObservations[a.id].remainingBudget)
+        : null;
+    const infoBudget =
+      finalInfo &&
+      finalInfo.budgets &&
+      Number.isFinite(Number(finalInfo.budgets[a.id]))
+        ? Number(finalInfo.budgets[a.id])
+        : null;
+    const inventoryValue =
+      finalInfo &&
+      finalInfo.inventoryValue &&
+      Number.isFinite(Number(finalInfo.inventoryValue[a.id]))
+        ? Number(finalInfo.inventoryValue[a.id])
+        : 0;
+
     const remainingBudget =
-      startingBudget !== null && Number.isFinite(startingBudget)
-        ? Math.max(0, startingBudget - spent)
-        : finalObservations[a.id] &&
-            Number.isFinite(Number(finalObservations[a.id].remainingBudget))
-          ? Number(finalObservations[a.id].remainingBudget)
-          : null;
+      infoBudget !== null
+        ? infoBudget
+        : obsRemaining !== null
+          ? obsRemaining
+          : startingBudget !== null && Number.isFinite(startingBudget)
+            ? Math.max(0, startingBudget - spent)
+            : null;
 
     const finalWealth =
-      startingBudget !== null && Number.isFinite(startingBudget)
-        ? startingBudget + (a._return || 0) - spent
-        : null;
+      remainingBudget !== null
+        ? remainingBudget + inventoryValue
+        : startingBudget !== null && Number.isFinite(startingBudget)
+          ? startingBudget + (a._return || 0) - spent
+          : null;
 
     return {
       id: a.id,
@@ -381,6 +402,7 @@ async function runEpisode(opts = {}) {
       spent,
       remainingBudget,
       wins,
+      inventoryValue,
       finalWealth,
     };
   });

@@ -3,6 +3,7 @@ const { EvaluationContract } = require("./EvaluationConfig");
 const PoolBuilder = require("./PoolBuilder");
 const { runEpisode } = require("../../engine/runner/EpisodeRunner");
 const Envs = require("../../engine/environments");
+const MetricsCalculator = require("../metrics/MetricsCalculator");
 const SiLog = require("../../utils/SiLog");
 
 function throwIfAborted(signal) {
@@ -31,6 +32,10 @@ const EvaluationService = {
       config.envFactory ||
       (config.envName ? Envs.getFactory(config.envName) : null);
 
+    if (!topEnvFactory) {
+      throw new Error(`envFactory/envName not present in config`);
+    }
+
     const pools = PoolBuilder.buildPools({
       evaluationId,
       seed,
@@ -41,17 +46,6 @@ const EvaluationService = {
     });
 
     const episodes = [];
-    const aggregates = {};
-
-    const safeRecord = (agentId, val, failed = false) => {
-      if (!aggregates[agentId])
-        aggregates[agentId] = { totalReturn: 0, count: 0, fails: 0 };
-      if (failed) aggregates[agentId].fails += 1;
-      else {
-        aggregates[agentId].totalReturn += Number(val || 0);
-        aggregates[agentId].count += 1;
-      }
-    };
 
     const resolveEnvFactoryForPool = (pool) => {
       if (pool.envFactory) return pool.envFactory;
@@ -107,15 +101,45 @@ const EvaluationService = {
 
           for (const ar of agentResults) {
             const id = ar.id || ar.agentId || ar.name;
-            const value =
+            const ret =
               "return" in ar
-                ? ar.return
-                : "payoff" in ar
-                  ? ar.payoff
-                  : ar.value;
+                ? Number(ar.return || 0)
+                : "value" in ar
+                  ? Number(ar.value || 0)
+                  : "payoff" in ar
+                    ? Number(ar.payoff || 0)
+                    : 0;
             const failed = !!ar.failed;
-            episodeResult.agentResults.push({ id, value, failed });
-            safeRecord(id, value, failed);
+            const startingBudget = Number.isFinite(Number(ar.startingBudget))
+              ? Number(ar.startingBudget)
+              : null;
+            const spent = Number.isFinite(Number(ar.spent))
+              ? Number(ar.spent)
+              : null;
+            const remainingBudget = Number.isFinite(Number(ar.remainingBudget))
+              ? Number(ar.remainingBudget)
+              : null;
+            const wins = Number.isFinite(Number(ar.wins))
+              ? Number(ar.wins)
+              : null;
+            const finalWealth = Number.isFinite(Number(ar.finalWealth))
+              ? Number(ar.finalWealth)
+              : null;
+            const inventoryValue = Number.isFinite(Number(ar.inventoryValue))
+              ? Number(ar.inventoryValue)
+              : null;
+            episodeResult.agentResults.push({
+              id,
+              return: ret,
+              value: ret,
+              failed,
+              startingBudget,
+              spent,
+              remainingBudget,
+              wins,
+              finalWealth,
+              inventoryValue,
+            });
           }
         } catch (err) {
           // propagate abort immediately
@@ -129,8 +153,18 @@ const EvaluationService = {
           );
           for (const agent of pool.agents) {
             const id = agent.id || agent.agentId || agent.name;
-            episodeResult.agentResults.push({ id, value: null, failed: true });
-            safeRecord(id, null, true);
+            episodeResult.agentResults.push({
+              id,
+              return: 0,
+              value: 0,
+              failed: true,
+              startingBudget: null,
+              spent: null,
+              remainingBudget: null,
+              wins: null,
+              finalWealth: null,
+              inventoryValue: null,
+            });
           }
         }
 
@@ -138,16 +172,7 @@ const EvaluationService = {
       }
     }
 
-    const metrics = {};
-    for (const [agentId, agg] of Object.entries(aggregates)) {
-      const avg = agg.count > 0 ? agg.totalReturn / agg.count : 0;
-      metrics[agentId] = {
-        totalReturn: agg.totalReturn,
-        episodesCounted: agg.count,
-        failures: agg.fails,
-        averageReturn: avg,
-      };
-    }
+    const metrics = MetricsCalculator.fromEpisodes(episodes);
 
     const evaluationResult = {
       evaluationId,
