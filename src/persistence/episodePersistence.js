@@ -12,6 +12,7 @@ function buildDocsForAgentResults({
   poolId = "",
   episodeIndex = 0,
   seed = "",
+  userId = null,
   agentResults = [],
 }) {
   const docs = [];
@@ -29,6 +30,9 @@ function buildDocsForAgentResults({
     const doc = {
       evaluationId,
       agentId,
+      userId: userId || null,
+      agentOwnerId:
+        agentResult.ownerId || agentResult.owner || agentResult.userId || null,
       episodeIndex,
       poolId,
       seed,
@@ -66,6 +70,7 @@ async function persistEpisodeResult({
   poolId,
   episodeIndex,
   seed,
+  userId = null,
   agentResults,
 }) {
   if (!evaluationId) return [];
@@ -74,6 +79,7 @@ async function persistEpisodeResult({
     poolId,
     episodeIndex,
     seed,
+    userId,
     agentResults,
   });
   if (!docs.length) return [];
@@ -81,7 +87,11 @@ async function persistEpisodeResult({
   return ResultModel.insertMany(docs, { ordered: false });
 }
 
-async function persistEpisodeResults(evaluationId, episodes = []) {
+async function persistEpisodeResults(
+  evaluationId,
+  episodes = [],
+  userId = null,
+) {
   if (!evaluationId) return [];
   await clearEvaluationResults(evaluationId);
   const docs = [];
@@ -99,6 +109,7 @@ async function persistEpisodeResults(evaluationId, episodes = []) {
         poolId,
         episodeIndex,
         seed: episodeSeed,
+        userId,
         agentResults,
       }),
     );

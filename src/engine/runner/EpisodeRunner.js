@@ -110,20 +110,22 @@ async function prepareAgents(agentsSpec = []) {
   const prepared = [];
   for (const spec of agentsSpec) {
     const id = spec.id || spec.agentId || spec.name;
+    const ownerId = spec.ownerId || spec.userId || null;
     const key = cacheKeyForAgentSpec(spec);
     if (strategyCache.has(key)) {
-      prepared.push({ id, strategy: strategyCache.get(key) });
+      prepared.push({ id, strategy: strategyCache.get(key), ownerId });
       continue;
     }
     const { module, error } = loadStrategyFromSpec(spec);
     if (module) {
       strategyCache.set(key, module);
-      prepared.push({ id, strategy: module });
+      prepared.push({ id, strategy: module, ownerId });
     } else {
       prepared.push({
         id,
         strategy: null,
         loadError: error && error.message ? error.message : String(error),
+        ownerId,
       });
     }
   }
@@ -173,6 +175,7 @@ async function runEpisode(opts = {}) {
     _loadError: p.loadError || null,
     _return: 0,
     _startingBudget: Infinity,
+    ownerId: p.ownerId || null,
   }));
 
   const rng = createRng(String(seed));
@@ -396,6 +399,7 @@ async function runEpisode(opts = {}) {
 
     return {
       id: a.id,
+      ownerId: a.ownerId || null,
       return: typeof a._return === "number" ? a._return : 0,
       failed: Boolean(a._failed),
       loadError: a._loadError || null,
@@ -426,6 +430,7 @@ async function runEpisode(opts = {}) {
         poolId: persistence.poolId,
         episodeIndex: persistence.episodeIndex,
         seed,
+        userId: persistence.userId || null,
         agentResults,
       });
     } catch (err) {

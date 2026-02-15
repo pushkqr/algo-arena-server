@@ -51,6 +51,12 @@ const EvaluationService = {
       config.envOpts && typeof config.envOpts === "object"
         ? config.envOpts
         : {};
+    const userId = config.userId || null;
+
+    const normalizedAgents = (config.agents || []).map((agent) => ({
+      ...agent,
+      ownerId: agent.ownerId || agent.userId || null,
+    }));
 
     const topEnvFactory =
       config.envFactory ||
@@ -78,7 +84,7 @@ const EvaluationService = {
       pools = PoolBuilder.buildPools({
         evaluationId,
         seed,
-        agents: config.agents,
+        agents: normalizedAgents,
         poolSize,
         poolCount: config.poolCount,
         shuffle,
@@ -126,6 +132,7 @@ const EvaluationService = {
                 poolId: pool.poolId,
                 episodeIndex: e,
                 seed: episodeSeed,
+                userId,
               },
             });
 
@@ -219,6 +226,7 @@ const EvaluationService = {
       const metrics = MetricsCalculator.fromEpisodes(episodes);
       const ranking = RankingsService.rank(metrics, rankingOptions);
       const evaluationResult = {
+        userId,
         evaluationId,
         seed,
         config: { rounds, poolSize, episodesPerPool, shuffle },
@@ -238,7 +246,8 @@ const EvaluationService = {
         episodesPerPool,
         envName,
         envOpts,
-        agents: config.agents,
+        agents: normalizedAgents,
+        userId,
         status: "completed",
         startedAt,
         completedAt: new Date(),
@@ -259,6 +268,7 @@ const EvaluationService = {
         envName,
         envOpts,
         agents: config.agents,
+        userId,
         status: "failed",
         startedAt,
         completedAt: new Date(),

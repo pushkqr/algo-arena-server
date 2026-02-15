@@ -11,6 +11,7 @@ const EvaluationSchema = new mongoose.Schema(
     envName: { type: String, default: "" },
     envOpts: { type: Object, default: {} },
     agents: { type: Array, default: [] },
+    userId: { type: String, index: true },
     status: {
       type: String,
       enum: ["queued", "running", "completed", "failed"],

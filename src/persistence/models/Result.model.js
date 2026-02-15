@@ -4,6 +4,8 @@ const ResultSchema = new mongoose.Schema(
   {
     evaluationId: { type: String, required: true, index: true },
     agentId: { type: String, required: true },
+    userId: { type: String, index: true },
+    agentOwnerId: { type: String, index: true },
     episodeIndex: { type: Number, default: 0 },
     poolId: { type: String, default: "" },
     seed: { type: String, default: "" },
