@@ -8,6 +8,7 @@ const RankingsService = require("../metrics/RankingsService");
 const EvaluationModel = require("../../persistence/models/Evaluation.model");
 const {
   clearEvaluationResults,
+  persistEvaluationAggregateResults,
 } = require("../../persistence/episodePersistence");
 const DB = require("../../utils/DB");
 const SiLog = require("../../utils/SiLog");
@@ -127,13 +128,6 @@ const EvaluationService = {
               config: { rounds, poolId: pool.poolId },
               agents: pool.agents,
               abortSignal, // pass cancellation down
-              persistence: {
-                evaluationId,
-                poolId: pool.poolId,
-                episodeIndex: e,
-                seed: episodeSeed,
-                userId,
-              },
             });
 
             const agentResults =
@@ -225,6 +219,17 @@ const EvaluationService = {
 
       const metrics = MetricsCalculator.fromEpisodes(episodes);
       const ranking = RankingsService.rank(metrics, rankingOptions);
+
+      await persistEvaluationAggregateResults({
+        evaluationId,
+        userId,
+        envName,
+        seed,
+        ranking,
+        metrics,
+        agents: normalizedAgents,
+      });
+
       const evaluationResult = {
         userId,
         evaluationId,

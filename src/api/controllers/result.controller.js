@@ -27,10 +27,7 @@ async function listEvaluationResults(req, res) {
     }
 
     await DB.connect();
-    const evaluation = await EvaluationModel.findOne({
-      evaluationId,
-      userId: req.userId,
-    })
+    const evaluation = await EvaluationModel.findOne({ evaluationId })
       .lean()
       .select("evaluationId");
     if (!evaluation) {
@@ -41,11 +38,11 @@ async function listEvaluationResults(req, res) {
     const skip = normalizeSkip(req.query.skip);
     const filter = {
       evaluationId,
-      userId: req.userId,
+      agentOwnerId: req.userId,
     };
     const [results, total] = await Promise.all([
       ResultModel.find(filter)
-        .sort({ episodeIndex: 1, agentId: 1 })
+        .sort({ rank: 1, agentId: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -73,7 +70,7 @@ async function getResult(req, res) {
     await DB.connect();
     const result = await ResultModel.findOne({
       _id: resultId,
-      userId: req.userId,
+      agentOwnerId: req.userId,
     }).lean();
     if (!result) {
       return res.status(404).json({ error: "result not found" });

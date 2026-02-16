@@ -19,6 +19,13 @@ function normalizeEnvOpts(opts) {
   return {};
 }
 
+function normalizeEnvName(value) {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  return "AuctionHouse";
+}
+
 function normalizeStringArray(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -33,7 +40,11 @@ function stringifyId(value) {
 }
 
 async function resolveAgentsFromStrategies(options = {}) {
-  const filter = { status: true };
+  const resolvedEnvName = normalizeEnvName(options.envName);
+  const filter = {
+    envName: resolvedEnvName,
+    $or: [{ isActive: true }, { isActive: { $exists: false }, status: true }],
+  };
   const strategyIds = normalizeStringArray(options.strategyIds);
   if (strategyIds.length) {
     filter.strategyId = { $in: strategyIds };
@@ -71,13 +82,17 @@ async function resolveAgentsFromStrategies(options = {}) {
       });
   }
 
-  return await loadFromStrategyCollection(options);
+  return await loadFromStrategyCollection({
+    ...options,
+    envName: resolvedEnvName,
+  });
 }
 
 async function loadFromStrategyCollection(options = {}) {
   try {
     const stratColl = DB.mongoose.connection.collection("strategies");
     const query = {};
+    const requestedEnvName = normalizeEnvName(options.envName);
     const finalOwnerIds = normalizeStringArray(options.ownerIds);
     if (finalOwnerIds.length) {
       query.uid = { $in: finalOwnerIds };
@@ -88,7 +103,13 @@ async function loadFromStrategyCollection(options = {}) {
       const ownerId = doc.uid || stringifyId(doc._id) || null;
       const array = Array.isArray(doc.strategies) ? doc.strategies : [];
       for (const strat of array) {
-        if (!strat || strat.status !== true) continue;
+        if (!strat) continue;
+        const active =
+          strat.isActive === true ||
+          (strat.isActive === undefined && strat.status === true);
+        if (!active) continue;
+        const strategyEnv = normalizeEnvName(strat.envName);
+        if (requestedEnvName && strategyEnv !== requestedEnvName) continue;
         const hasCode =
           (strat.source && String(strat.source).trim() !== "") ||
           (strat.path && String(strat.path).trim() !== "");
@@ -115,6 +136,7 @@ async function loadFromStrategyCollection(options = {}) {
 }
 
 function buildQueuedRecord(body, evaluationId, userId, agents = [], seedValue) {
+  const envName = normalizeEnvName(body.envName);
   return {
     evaluationId,
     userId,
@@ -129,7 +151,7 @@ function buildQueuedRecord(body, evaluationId, userId, agents = [], seedValue) {
     poolSize: toNumber(body.poolSize, 0),
     poolCount: toNumber(body.poolCount, 0),
     episodesPerPool: toNumber(body.episodesPerPool, 0),
-    envName: typeof body.envName === "string" ? body.envName : "",
+    envName,
     envOpts: normalizeEnvOpts(body.envOpts),
     agents,
     metrics: {},
@@ -156,19 +178,24 @@ async function saveQueuedRecord(record) {
 async function startEvaluation(req, res) {
   try {
     const body = req.body || {};
+    const envName = normalizeEnvName(req.query.envName || body.envName);
+    const requestPayload = {
+      ...body,
+      envName,
+    };
     const evaluationId = String(body.evaluationId || randomUUID());
     const resolvedSeed =
       body.seed !== undefined ? String(body.seed) : String(Date.now());
     let agents =
       Array.isArray(body.agents) && body.agents.length ? body.agents : null;
     if (!agents) {
-      agents = await resolveAgentsFromStrategies(body);
+      agents = await resolveAgentsFromStrategies(requestPayload);
     }
     if (!agents || !agents.length) {
       return res.status(400).json({ error: "no active strategies available" });
     }
     const config = {
-      ...body,
+      ...requestPayload,
       evaluationId,
       userId: req.userId,
       agents,
@@ -176,7 +203,7 @@ async function startEvaluation(req, res) {
       shuffle: body.shuffle !== undefined ? !!body.shuffle : true,
     };
     const queuedRecord = buildQueuedRecord(
-      body,
+      requestPayload,
       evaluationId,
       req.userId,
       agents,

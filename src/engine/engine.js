@@ -28,13 +28,15 @@ function createEngine(opts = {}) {
 
   async function _execute({ evaluationId, config, resolve, reject }) {
     emitter.emit("start", evaluationId, config);
-    let finished = false;
-    const ctrl = { cancelled: false };
+    const ctrl = { cancelled: false, abortController: new AbortController() };
     runs.get(evaluationId).controller = ctrl;
 
     const runnerPromise = (async () => {
       try {
-        const result = await EvaluationService.runEvaluation(config);
+        const result = await EvaluationService.runEvaluation({
+          ...config,
+          abortSignal: ctrl.abortController.signal,
+        });
         if (ctrl.cancelled) {
           emitter.emit("cancelled", evaluationId);
           reject(new Error("cancelled"));
@@ -46,7 +48,6 @@ function createEngine(opts = {}) {
           logger.warn && logger.warn("persistence.saveEvaluation failed", err);
         }
         emitter.emit("done", evaluationId, result);
-        finished = true;
         resolve(result);
         return result;
       } catch (err) {
@@ -84,13 +85,22 @@ function createEngine(opts = {}) {
     if (!r) return false;
     const qi = queue.findIndex((q) => q.evaluationId === evaluationId);
     if (qi >= 0) {
-      queue.splice(qi, 1);
+      const [queuedItem] = queue.splice(qi, 1);
       runs.delete(evaluationId);
+      if (queuedItem && typeof queuedItem.reject === "function") {
+        queuedItem.reject(new Error("cancelled"));
+      }
       emitter.emit("cancelled", evaluationId);
       return true;
     }
     if (r.controller) {
       r.controller.cancelled = true;
+      if (
+        r.controller.abortController &&
+        typeof r.controller.abortController.abort === "function"
+      ) {
+        r.controller.abortController.abort();
+      }
       return true;
     }
     return false;

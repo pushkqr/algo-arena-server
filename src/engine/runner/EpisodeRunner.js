@@ -4,9 +4,6 @@ const { create: createRng } = require("../../engine/rng/SeededRNG");
 const StrategyLoader = require("../../domain/strategy/StrategyLoader");
 const RoundExecutor = require("./RoundExecutor");
 const SiLog = require("../../utils/SiLog");
-const {
-  persistEpisodeResult,
-} = require("../../persistence/episodePersistence");
 
 const DEFAULT_MAX_STEPS = 1000;
 const DEFAULT_STEP_TIMEOUT_MS = 50;
@@ -152,7 +149,6 @@ async function runEpisode(opts = {}) {
     resetTimeoutMs = DEFAULT_RESET_TIMEOUT_MS,
     abortSignal = null,
     logger = SiLog,
-    persistence = null,
   } = opts;
 
   if (!envFactory || typeof envFactory !== "function") {
@@ -422,23 +418,6 @@ async function runEpisode(opts = {}) {
     rounds: roundsMeta,
     info: finalInfo,
   };
-
-  if (persistence && persistence.evaluationId) {
-    try {
-      await persistEpisodeResult({
-        evaluationId: persistence.evaluationId,
-        poolId: persistence.poolId,
-        episodeIndex: persistence.episodeIndex,
-        seed,
-        userId: persistence.userId || null,
-        agentResults,
-      });
-    } catch (err) {
-      if (logger && typeof logger.Error === "function") {
-        logger.Error(`Failed to persist episode result: ${err && err.message}`);
-      }
-    }
-  }
 
   return { agentResults, episodeMeta };
 }
