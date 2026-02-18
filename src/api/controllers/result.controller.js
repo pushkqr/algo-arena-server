@@ -113,23 +113,26 @@ async function listEvaluationResults(req, res) {
   }
 }
 
-async function getResult(req, res) {
+async function getResultItem(req, res) {
   try {
     const { resultId } = req.params;
     if (!resultId) {
       return res.status(400).json({ error: "resultId required" });
     }
+
     await DB.connect();
     const result = await ResultModel.findOne({
       _id: resultId,
       agentOwnerId: req.userId,
     }).lean();
+
     if (!result) {
       return res.status(404).json({ error: "result not found" });
     }
+
     return res.json(result);
   } catch (err) {
-    console.error("failed to fetch result", err);
+    console.error("failed to fetch result item", err);
     return res
       .status(500)
       .json({ error: "unable to load result", details: err?.message });
@@ -139,5 +142,5 @@ async function getResult(req, res) {
 module.exports = {
   listUserResults,
   listEvaluationResults,
-  getResult,
+  getResultItem,
 };

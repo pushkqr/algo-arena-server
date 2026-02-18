@@ -11,10 +11,7 @@ router.use(attachUserContext);
 router.use(requireUser);
 
 router.get("/", controller.listUserResults);
-router.get(
-  "/evaluations/:evaluationId/results",
-  controller.listEvaluationResults,
-);
-router.get("/:resultId", controller.getResult);
+router.get("/item/:resultId", controller.getResultItem);
+router.get("/:evaluationId", controller.listEvaluationResults);
 
 module.exports = router;

@@ -205,9 +205,10 @@ Start evaluation body (typical):
   - General “My Results” endpoint.
   - Query: `envName`, `evaluationId`, `agentId`, `limit`, `skip`
   - Returns only rows where `agentOwnerId == req.userId`
-- `GET /api/results/evaluations/:evaluationId/results`
+- `GET /api/results/item/:resultId`
+  - Returns a single result row where `agentOwnerId == req.userId`
+- `GET /api/results/:evaluationId`
   - Returns only rows where `agentOwnerId == req.userId`
-- `GET /api/results/:resultId`
 
 Example:
 
