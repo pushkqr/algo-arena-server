@@ -19,6 +19,58 @@ function normalizeSkip(value) {
   return 0;
 }
 
+async function listUserResults(req, res) {
+  try {
+    await DB.connect();
+
+    const limit = normalizeLimit(req.query.limit);
+    const skip = normalizeSkip(req.query.skip);
+
+    const filter = {
+      agentOwnerId: req.userId,
+    };
+
+    if (typeof req.query.envName === "string" && req.query.envName.trim()) {
+      filter.envName = req.query.envName.trim();
+    }
+    if (
+      typeof req.query.evaluationId === "string" &&
+      req.query.evaluationId.trim()
+    ) {
+      filter.evaluationId = req.query.evaluationId.trim();
+    }
+    if (typeof req.query.agentId === "string" && req.query.agentId.trim()) {
+      filter.agentId = req.query.agentId.trim();
+    }
+
+    const [results, total] = await Promise.all([
+      ResultModel.find(filter)
+        .sort({ createdAt: -1, evaluationId: -1, rank: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ResultModel.countDocuments(filter),
+    ]);
+
+    return res.json({
+      meta: {
+        limit,
+        skip,
+        total,
+        envName: filter.envName || null,
+        evaluationId: filter.evaluationId || null,
+        agentId: filter.agentId || null,
+      },
+      results,
+    });
+  } catch (err) {
+    console.error("failed to list user results", err);
+    return res
+      .status(500)
+      .json({ error: "unable to fetch results", details: err?.message });
+  }
+}
+
 async function listEvaluationResults(req, res) {
   try {
     const { evaluationId } = req.params;
@@ -85,6 +137,7 @@ async function getResult(req, res) {
 }
 
 module.exports = {
+  listUserResults,
   listEvaluationResults,
   getResult,
 };

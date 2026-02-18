@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(attachUserContext);
 router.use(requireUser);
 
+router.get("/", controller.listUserResults);
 router.get(
   "/evaluations/:evaluationId/results",
   controller.listEvaluationResults,

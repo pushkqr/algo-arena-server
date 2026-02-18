@@ -201,8 +201,18 @@ Start evaluation body (typical):
 
 ### Results (user-scoped)
 
+- `GET /api/results`
+  - General “My Results” endpoint.
+  - Query: `envName`, `evaluationId`, `agentId`, `limit`, `skip`
+  - Returns only rows where `agentOwnerId == req.userId`
 - `GET /api/results/evaluations/:evaluationId/results`
   - Returns only rows where `agentOwnerId == req.userId`
 - `GET /api/results/:resultId`
+
+Example:
+
+```bash
+GET /api/results?envName=AuctionHouse&limit=20&skip=0
+```
 
 ---
