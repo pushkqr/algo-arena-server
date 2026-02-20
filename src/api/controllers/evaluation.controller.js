@@ -1,199 +1,16 @@
 const { randomUUID } = require("crypto");
 const evaluationEngine = require("../evaluationEngine");
-const StrategyModel = require("../../persistence/models/Strategy.model");
 const EvaluationModel = require("../../persistence/models/Evaluation.model");
 const Environments = require("../../engine/environments");
 const DB = require("../../utils/DB");
-
-const DEFAULT_LIST_LIMIT = 30;
-const MAX_LIST_LIMIT = 200;
-
-function toNumber(value, fallback = 0) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizeEnvOpts(opts) {
-  if (opts && typeof opts === "object" && !Array.isArray(opts)) {
-    return opts;
-  }
-  return {};
-}
-
-function resolveEnvOpts(body = {}) {
-  if (
-    body.envOpts &&
-    typeof body.envOpts === "object" &&
-    !Array.isArray(body.envOpts)
-  ) {
-    return normalizeEnvOpts(body.envOpts);
-  }
-  if (
-    body.envConfig &&
-    typeof body.envConfig === "object" &&
-    !Array.isArray(body.envConfig)
-  ) {
-    return normalizeEnvOpts(body.envConfig);
-  }
-  return {};
-}
-
-function normalizeEnvName(value) {
-  if (typeof value === "string" && value.trim()) {
-    return value.trim();
-  }
-  return "AuctionHouse";
-}
-
-function normalizeStringArray(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : `${item}`))
-    .filter((item) => item);
-}
-
-function stringifyId(value) {
-  if (typeof value === "string") return value;
-  if (value && typeof value.toString === "function") return value.toString();
-  return "";
-}
-
-async function resolveAgentsFromStrategies(options = {}) {
-  const resolvedEnvName = normalizeEnvName(options.envName);
-  const filter = {
-    envName: resolvedEnvName,
-    $or: [{ isActive: true }, { isActive: { $exists: false }, status: true }],
-  };
-  const strategyIds = normalizeStringArray(options.strategyIds);
-  if (strategyIds.length) {
-    filter.strategyId = { $in: strategyIds };
-  }
-  const ownerIds = normalizeStringArray(options.ownerIds);
-  if (ownerIds.length) {
-    filter.ownerId = { $in: ownerIds };
-  }
-
-  await DB.connect();
-  const strategies = await StrategyModel.find(filter).lean();
-  if (strategies && strategies.length) {
-    return strategies
-      .filter(
-        (strategy) =>
-          (strategy.source && String(strategy.source).trim() !== "") ||
-          (strategy.path && String(strategy.path).trim() !== ""),
-      )
-      .map((strategy) => {
-        const fallbackId = stringifyId(strategy._id);
-        return {
-          id: strategy.strategyId || strategy.name || fallbackId,
-          name: strategy.name || undefined,
-          source:
-            strategy.source && String(strategy.source).trim() !== ""
-              ? strategy.source
-              : undefined,
-          path:
-            strategy.path && String(strategy.path).trim() !== ""
-              ? strategy.path
-              : undefined,
-          ownerId: strategy.ownerId || null,
-          metadata: strategy.metadata || {},
-        };
-      });
-  }
-
-  return await loadFromStrategyCollection({
-    ...options,
-    envName: resolvedEnvName,
-  });
-}
-
-async function loadFromStrategyCollection(options = {}) {
-  try {
-    const stratColl = DB.mongoose.connection.collection("strategies");
-    const query = {};
-    const requestedEnvName = normalizeEnvName(options.envName);
-    const finalOwnerIds = normalizeStringArray(options.ownerIds);
-    if (finalOwnerIds.length) {
-      query.uid = { $in: finalOwnerIds };
-    }
-    const docs = await stratColl.find(query).toArray();
-    const items = [];
-    for (const doc of docs || []) {
-      const ownerId = doc.uid || stringifyId(doc._id) || null;
-      const array = Array.isArray(doc.strategies) ? doc.strategies : [];
-      for (const strat of array) {
-        if (!strat) continue;
-        const active =
-          strat.isActive === true ||
-          (strat.isActive === undefined && strat.status === true);
-        if (!active) continue;
-        const strategyEnv = normalizeEnvName(strat.envName);
-        if (requestedEnvName && strategyEnv !== requestedEnvName) continue;
-        const hasCode =
-          (strat.source && String(strat.source).trim() !== "") ||
-          (strat.path && String(strat.path).trim() !== "");
-        if (!hasCode) continue;
-        items.push({
-          id:
-            strat.strategyId ||
-            strat.id ||
-            strat.name ||
-            `user-strat-${ownerId}`,
-          name: strat.name || undefined,
-          source: strat.source || undefined,
-          path: strat.path || undefined,
-          ownerId,
-          metadata: strat.metadata || {},
-        });
-      }
-    }
-    return items;
-  } catch (err) {
-    console.error("strategy collection lookup failed", err);
-    return [];
-  }
-}
-
-function buildQueuedRecord(body, evaluationId, userId, agents = [], seedValue) {
-  const envName = normalizeEnvName(body.envName);
-  const envOpts = resolveEnvOpts(body);
-  return {
-    evaluationId,
-    userId,
-    status: "queued",
-    seed:
-      seedValue !== undefined
-        ? String(seedValue)
-        : body.seed !== undefined
-          ? String(body.seed)
-          : "",
-    rounds: toNumber(body.rounds, 0),
-    poolSize: toNumber(body.poolSize, 0),
-    poolCount: toNumber(body.poolCount, 0),
-    episodesPerPool: toNumber(body.episodesPerPool, 0),
-    envName,
-    envOpts,
-    agents,
-    metrics: {},
-    ranking: [],
-    error: "",
-    startedAt: null,
-    completedAt: null,
-  };
-}
-
-async function saveQueuedRecord(record) {
-  await DB.connect();
-  return EvaluationModel.findOneAndUpdate(
-    { evaluationId: record.evaluationId },
-    { $set: record },
-    {
-      upsert: true,
-      returnDocument: "after",
-      setDefaultsOnInsert: true,
-    },
-  );
-}
+const {
+  normalizeEnvName,
+  resolveEnvOpts,
+  buildQueuedRecord,
+  resolvePagination,
+} = require("./evaluation.helpers");
+const { resolveAgentsFromStrategies } = require("./evaluation.agentResolver");
+const { saveQueuedRecord } = require("./evaluation.persistence");
 
 async function startEvaluation(req, res) {
   try {
@@ -299,19 +116,7 @@ async function listEvaluations(req, res) {
   try {
     const status =
       typeof req.query.status === "string" ? req.query.status : null;
-    const requestedLimit = parseInt(req.query.limit, 10);
-    const requestedSkip = parseInt(req.query.skip, 10);
-    const limit = Math.min(
-      MAX_LIST_LIMIT,
-      Math.max(
-        1,
-        Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_LIST_LIMIT,
-      ),
-    );
-    const skip = Math.max(
-      0,
-      Number.isFinite(requestedSkip) ? requestedSkip : 0,
-    );
+    const { limit, skip } = resolvePagination(req.query);
 
     await DB.connect();
     const filter = { userId: req.userId };
