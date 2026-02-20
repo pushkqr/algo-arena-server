@@ -31,6 +31,21 @@ function resolveEnvOpts(body = {}) {
   return {};
 }
 
+function resolveRounds(body = {}, fallback = 0) {
+  const envOpts = resolveEnvOpts(body);
+  const envRounds = Number(envOpts.rounds);
+  if (Number.isFinite(envRounds)) {
+    return envRounds;
+  }
+
+  const topLevelRounds = Number(body.rounds);
+  if (Number.isFinite(topLevelRounds)) {
+    return topLevelRounds;
+  }
+
+  return fallback;
+}
+
 function normalizeEnvName(value) {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
@@ -64,7 +79,7 @@ function buildQueuedRecord(body, evaluationId, userId, agents = [], seedValue) {
         : body.seed !== undefined
           ? String(body.seed)
           : "",
-    rounds: toNumber(body.rounds, 0),
+    rounds: resolveRounds(body, 0),
     poolSize: toNumber(body.poolSize, 0),
     poolCount: toNumber(body.poolCount, 0),
     episodesPerPool: toNumber(body.episodesPerPool, 0),
@@ -102,6 +117,7 @@ module.exports = {
   toNumber,
   normalizeEnvOpts,
   resolveEnvOpts,
+  resolveRounds,
   normalizeEnvName,
   normalizeStringArray,
   stringifyId,

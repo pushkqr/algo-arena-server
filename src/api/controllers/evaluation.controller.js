@@ -6,6 +6,7 @@ const DB = require("../../utils/DB");
 const {
   normalizeEnvName,
   resolveEnvOpts,
+  resolveRounds,
   buildQueuedRecord,
   resolvePagination,
 } = require("./evaluation.helpers");
@@ -30,6 +31,7 @@ async function startEvaluation(req, res) {
       envName,
       envOpts,
     };
+    const resolvedRounds = resolveRounds(requestPayload, undefined);
     const evaluationId = String(body.evaluationId || randomUUID());
     const resolvedSeed =
       body.seed !== undefined ? String(body.seed) : String(Date.now());
@@ -43,6 +45,7 @@ async function startEvaluation(req, res) {
     }
     const config = {
       ...requestPayload,
+      rounds: resolvedRounds,
       evaluationId,
       userId: req.userId,
       agents,
