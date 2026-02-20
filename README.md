@@ -181,6 +181,11 @@ Create/update body (typical):
 
 ### Evaluations (service-user only)
 
+- `GET /api/evaluations/env-options?envName=AuctionHouse`
+  - Returns expected `envOpts` schema for one environment.
+  - If `envName` is omitted, returns schemas for all registered environments.
+- `POST /api/evaluations/env-options`
+  - Same behavior as GET, with optional `{ "envName": "AuctionHouse" }` in body.
 - `POST /api/evaluations?envName=AuctionHouse`
   - Queues a run and returns `202` + `Location` header.
   - If `agents` are omitted, active strategies for the environment are loaded automatically.
@@ -195,7 +200,67 @@ Start evaluation body (typical):
   "poolSize": 4,
   "poolCount": 2,
   "episodesPerPool": 8,
-  "shuffle": true
+  "shuffle": true,
+  "envOpts": {
+    "auctionType": "first",
+    "defaultBudget": 250,
+    "reserve": 5,
+    "maxConsecutiveWins": 2
+  }
+}
+```
+
+Env options schema response (example):
+
+```json
+{
+  "envName": "AuctionHouse",
+  "description": "Auction environment with configurable pricing and budget dynamics.",
+  "params": [
+    {
+      "key": "auctionType",
+      "type": "string",
+      "default": "second",
+      "enum": ["first", "second"]
+    },
+    {
+      "key": "defaultBudget",
+      "type": "number",
+      "default": null,
+      "nullable": true
+    }
+  ]
+}
+```
+
+Validation error response (example):
+
+```json
+{
+  "error": "invalid envOpts",
+  "envName": "AuctionHouse",
+  "details": [
+    "Unknown envOpts key 'foo' for environment 'AuctionHouse'",
+    "envOpts.auctionType must be one of: first, second",
+    "envOpts.maxItemValue must be > envOpts.minItemValue"
+  ]
+}
+```
+
+Example invalid request:
+
+```json
+{
+  "rounds": 12,
+  "poolSize": 4,
+  "poolCount": 2,
+  "episodesPerPool": 8,
+  "envOpts": {
+    "auctionType": "third",
+    "minItemValue": 100,
+    "maxItemValue": 20,
+    "foo": true
+  }
 }
 ```
 

@@ -122,9 +122,20 @@ const EvaluationService = {
               );
             }
 
+            const episodeEnvOpts = {
+              ...envOpts,
+              ...(pool.envOpts && typeof pool.envOpts === "object"
+                ? pool.envOpts
+                : {}),
+            };
+            if (episodeEnvOpts.rounds === undefined) {
+              episodeEnvOpts.rounds = rounds;
+            }
+
             const runnerRes = await runEpisode({
               seed: episodeSeed,
               envFactory,
+              envOpts: episodeEnvOpts,
               config: { rounds, poolId: pool.poolId },
               agents: pool.agents,
               abortSignal, // pass cancellation down

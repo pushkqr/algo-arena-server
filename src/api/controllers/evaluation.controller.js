@@ -2,6 +2,7 @@ const { randomUUID } = require("crypto");
 const evaluationEngine = require("../evaluationEngine");
 const StrategyModel = require("../../persistence/models/Strategy.model");
 const EvaluationModel = require("../../persistence/models/Evaluation.model");
+const Environments = require("../../engine/environments");
 const DB = require("../../utils/DB");
 
 const DEFAULT_LIST_LIMIT = 30;
@@ -15,6 +16,24 @@ function toNumber(value, fallback = 0) {
 function normalizeEnvOpts(opts) {
   if (opts && typeof opts === "object" && !Array.isArray(opts)) {
     return opts;
+  }
+  return {};
+}
+
+function resolveEnvOpts(body = {}) {
+  if (
+    body.envOpts &&
+    typeof body.envOpts === "object" &&
+    !Array.isArray(body.envOpts)
+  ) {
+    return normalizeEnvOpts(body.envOpts);
+  }
+  if (
+    body.envConfig &&
+    typeof body.envConfig === "object" &&
+    !Array.isArray(body.envConfig)
+  ) {
+    return normalizeEnvOpts(body.envConfig);
   }
   return {};
 }
@@ -137,6 +156,7 @@ async function loadFromStrategyCollection(options = {}) {
 
 function buildQueuedRecord(body, evaluationId, userId, agents = [], seedValue) {
   const envName = normalizeEnvName(body.envName);
+  const envOpts = resolveEnvOpts(body);
   return {
     evaluationId,
     userId,
@@ -152,7 +172,7 @@ function buildQueuedRecord(body, evaluationId, userId, agents = [], seedValue) {
     poolCount: toNumber(body.poolCount, 0),
     episodesPerPool: toNumber(body.episodesPerPool, 0),
     envName,
-    envOpts: normalizeEnvOpts(body.envOpts),
+    envOpts,
     agents,
     metrics: {},
     ranking: [],
@@ -179,9 +199,19 @@ async function startEvaluation(req, res) {
   try {
     const body = req.body || {};
     const envName = normalizeEnvName(req.query.envName || body.envName);
+    const envOpts = resolveEnvOpts(body);
+    const envValidation = Environments.validateEnvOptions(envName, envOpts);
+    if (!envValidation.valid) {
+      return res.status(400).json({
+        error: "invalid envOpts",
+        envName,
+        details: envValidation.errors,
+      });
+    }
     const requestPayload = {
       ...body,
       envName,
+      envOpts,
     };
     const evaluationId = String(body.evaluationId || randomUUID());
     const resolvedSeed =
@@ -232,6 +262,36 @@ async function startEvaluation(req, res) {
     return res
       .status(500)
       .json({ error: "unable to queue evaluation", details: err?.message });
+  }
+}
+
+async function getEnvironmentOptions(req, res) {
+  try {
+    const body = req.body || {};
+    const rawEnvName = req.query.envName || body.envName;
+
+    if (typeof rawEnvName === "string" && rawEnvName.trim()) {
+      const envName = rawEnvName.trim();
+      const spec = Environments.getEnvOptionSpec(envName);
+      if (!spec) {
+        return res.status(404).json({
+          error: "environment option schema not found",
+          envName,
+          availableEnvironments: Environments.listEnvs(),
+        });
+      }
+      return res.json(spec);
+    }
+
+    return res.json({
+      environments: Environments.listEnvOptionSpecs(),
+    });
+  } catch (err) {
+    console.error("failed to load environment options", err);
+    return res.status(500).json({
+      error: "unable to load environment options",
+      details: err?.message,
+    });
   }
 }
 
@@ -307,6 +367,7 @@ async function getEvaluation(req, res) {
 }
 
 module.exports = {
+  getEnvironmentOptions,
   startEvaluation,
   listEvaluations,
   getEvaluation,

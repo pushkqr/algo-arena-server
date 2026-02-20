@@ -143,6 +143,7 @@ async function runEpisode(opts = {}) {
   const {
     seed = "default",
     envFactory,
+    envOpts = {},
     agents = [],
     maxSteps = DEFAULT_MAX_STEPS,
     stepTimeoutMs = DEFAULT_STEP_TIMEOUT_MS,
@@ -161,7 +162,12 @@ async function runEpisode(opts = {}) {
     throw err;
   }
 
-  const env = envFactory(seed);
+  const resolvedEnvOpts =
+    envOpts && typeof envOpts === "object" && !Array.isArray(envOpts)
+      ? envOpts
+      : {};
+
+  const env = envFactory(seed, resolvedEnvOpts);
   const prepared = await prepareAgents(agents);
 
   const runnerAgents = prepared.map((p) => ({

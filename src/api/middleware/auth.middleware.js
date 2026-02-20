@@ -21,7 +21,6 @@ function parseCsvEnv(value) {
 
 function isServiceUser(req) {
   const decoded = req.firebaseUser || {};
-  console.log(decoded);
 
   if (decoded.service === true || decoded.isService === true) {
     return true;
@@ -30,8 +29,6 @@ function isServiceUser(req) {
   const allowedIds = parseCsvEnv(
     process.env.SERVICE_USER_IDS || process.env.SERVICE_USER_ID,
   );
-
-  console.log(allowedIds);
   if (allowedIds.length && req.userId && allowedIds.includes(req.userId)) {
     return true;
   }

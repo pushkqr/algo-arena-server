@@ -8,7 +8,6 @@ const DEFAULT_URI =
 let currentConnection = null;
 
 async function connect(uri = DEFAULT_URI, opts = {}) {
-  console.log(uri);
   if (currentConnection && currentConnection.readyState === 1) {
     return currentConnection;
   }
