@@ -85,8 +85,20 @@ MONGO_URI=mongodb://localhost:27017/algo-arena
 # JSON string for service account credentials
 FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account", ...}
 
+# Firestore username registry
+FIRESTORE_USERNAMES_COLLECTION=usernames
+# Comma-separated reserved usernames (optional)
+USERNAME_RESERVED_WORDS=
+
 # Engine
 EVAL_MAX_CONCURRENT=2
+
+# Leaderboard profile enrichment
+LEADERBOARD_PROFILE_CACHE_TTL_MS=60000
+LEADERBOARD_PROFILE_CACHE_MAX_ENTRIES=5000
+# default: display_name_or_fallback
+# option: display_name_only
+LEADERBOARD_USERNAME_POLICY=display_name_or_fallback
 
 # Optional local/dev fallback auth
 AUTH_ALLOW_FALLBACK_USER=false
@@ -281,12 +293,33 @@ Example:
 GET /api/results?envName=AuctionHouse&limit=20&skip=0
 ```
 
+### Users (user-scoped)
+
+- `GET /api/users/username-availability?username=<candidate>`
+  - Validates and checks username availability in Firestore username registry.
+  - Returns: `username`, `normalized`, `available`, `ownedByRequester`.
+- `PUT /api/users/me/username`
+  - Body: `{ "username": "new_name" }`
+  - Claims/updates username transactionally in Firestore collection (`usernames` by default).
+  - Syncs Firebase Auth `displayName` as best-effort; response includes `authProfileUpdated`.
+
+Username rules:
+
+- Normalized with lowercase + trim.
+- Must match `^[a-z0-9_]{3,20}$`.
+- Reserved words are blocked (`USERNAME_RESERVED_WORDS` + built-in defaults).
+
 ### Leaderboard (user-scoped)
 
 - `GET /api/leaderboard/evaluations`
   - Global leaderboard rows for a completed evaluation (not restricted to requester-owned strategies).
   - Requires `envName` (latest completed evaluation for that environment) or `evaluationId` (specific completed evaluation).
   - Query: `envName`, `evaluationId`, `limit`, `skip`
+  - Each leaderboard row includes `ownerProfile.username` only.
+  - Username policy is controlled by `LEADERBOARD_USERNAME_POLICY`:
+    - `display_name_or_fallback` (default): use Firebase `displayName`, else fallback handle (`user_<uid-prefix>`).
+    - `display_name_only`: use Firebase `displayName` only; if missing, `ownerProfile.username` is `null`.
+  - Firebase profile lookups are cached in-memory using `LEADERBOARD_PROFILE_CACHE_TTL_MS` and `LEADERBOARD_PROFILE_CACHE_MAX_ENTRIES`.
 
 Examples:
 

@@ -4,6 +4,7 @@ const strategiesRouter = require("./api/routes/strategies.routes");
 const evaluationRouter = require("./api/routes/evaluation.routes");
 const resultRouter = require("./api/routes/result.routes");
 const leaderboardRouter = require("./api/routes/leaderboard.routes");
+const usersRouter = require("./api/routes/users.routes");
 const {
   errorController,
   notFoundController,
@@ -20,6 +21,7 @@ app.use("/api/strategies", strategiesRouter);
 app.use("/api/evaluations", evaluationRouter);
 app.use("/api/results", resultRouter);
 app.use("/api/leaderboard", leaderboardRouter);
+app.use("/api/users", usersRouter);
 app.use(errorController);
 app.use(notFoundController);
 

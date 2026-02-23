@@ -33,5 +33,6 @@ const ResultSchema = new mongoose.Schema(
 
 ResultSchema.index({ evaluationId: 1, agentId: 1 }, { unique: true });
 ResultSchema.index({ evaluationId: 1, rank: 1 });
+ResultSchema.index({ evaluationId: 1, rank: 1, agentId: 1 });
 
 module.exports = mongoose.model("Result", ResultSchema);

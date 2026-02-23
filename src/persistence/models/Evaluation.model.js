@@ -28,4 +28,11 @@ const EvaluationSchema = new mongoose.Schema(
   },
 );
 
+EvaluationSchema.index({
+  envName: 1,
+  status: 1,
+  completedAt: -1,
+  createdAt: -1,
+});
+
 module.exports = mongoose.model("Evaluation", EvaluationSchema);
