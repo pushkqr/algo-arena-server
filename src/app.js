@@ -3,6 +3,7 @@ const express = require("express");
 const strategiesRouter = require("./api/routes/strategies.routes");
 const evaluationRouter = require("./api/routes/evaluation.routes");
 const resultRouter = require("./api/routes/result.routes");
+const leaderboardRouter = require("./api/routes/leaderboard.routes");
 const {
   errorController,
   notFoundController,
@@ -18,6 +19,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use("/api/strategies", strategiesRouter);
 app.use("/api/evaluations", evaluationRouter);
 app.use("/api/results", resultRouter);
+app.use("/api/leaderboard", leaderboardRouter);
 app.use(errorController);
 app.use(notFoundController);
 

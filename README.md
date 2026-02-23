@@ -281,4 +281,18 @@ Example:
 GET /api/results?envName=AuctionHouse&limit=20&skip=0
 ```
 
+### Leaderboard (user-scoped)
+
+- `GET /api/leaderboard/evaluations`
+  - Global leaderboard rows for a completed evaluation (not restricted to requester-owned strategies).
+  - Requires `envName` (latest completed evaluation for that environment) or `evaluationId` (specific completed evaluation).
+  - Query: `envName`, `evaluationId`, `limit`, `skip`
+
+Examples:
+
+```bash
+GET /api/leaderboard/evaluations?envName=AuctionHouse
+GET /api/leaderboard/evaluations?evaluationId=<evaluation-id>&limit=20&skip=0
+```
+
 ---
