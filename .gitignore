@@ -5,3 +5,7 @@ node_modules
 !.env.project
 !.env.vault
 temp/
+logs/
+*.bat
+*.sh
+*.pid

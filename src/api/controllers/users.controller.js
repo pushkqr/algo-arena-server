@@ -163,6 +163,7 @@ async function updateMyUsername(req, res) {
       await firebaseAdmin.auth().updateUser(req.userId, {
         displayName: username,
       });
+      console.log(await firebaseAdmin.auth().getUser(req.userId));
     } catch (syncErr) {
       authProfileUpdated = false;
       console.error("failed to sync Firebase displayName", syncErr);

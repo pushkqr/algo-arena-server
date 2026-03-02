@@ -1,6 +1,7 @@
 const { randomUUID } = require("crypto");
 const StrategyModel = require("../../persistence/models/Strategy.model");
 const DB = require("../../utils/DB");
+const { runSandboxStrategy } = require("./strategies.sandbox.controller");
 
 function normalizeEnvName(value) {
   if (typeof value === "string" && value.trim()) return value.trim();
@@ -179,4 +180,5 @@ module.exports = {
   createStrategy,
   updateStrategy,
   deleteStrategy,
+  runSandboxStrategy,
 };

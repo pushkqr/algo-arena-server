@@ -174,6 +174,10 @@ Base URL: `http://localhost:<PORT>`
 - `GET /api/strategies`
   - Query: `envName`, `active`, `limit`, `skip`
 - `GET /api/strategies/:strategyId`
+- `POST /api/strategies/sandbox-run`
+  - Runs a short, isolated strategy sandbox simulation for UX/debugging.
+  - Body: `envName` (required), `source` (required), `metadata` (optional), `runOptions` (optional).
+  - `runOptions`: `episodes` (max `1`, default `1`), `maxSteps`, `seed`, `traceMode` (`none | summary | full`).
 - `POST /api/strategies`
 - `PATCH /api/strategies/:strategyId`
 - `DELETE /api/strategies/:strategyId`

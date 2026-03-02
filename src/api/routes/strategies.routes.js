@@ -11,6 +11,7 @@ router.use(attachUserContext);
 router.use(requireUser);
 
 router.get("/", controller.listStrategies);
+router.post("/sandbox-run", controller.runSandboxStrategy);
 router.get("/:strategyId", controller.getStrategy);
 router.post("/", controller.createStrategy);
 router.patch("/:strategyId", controller.updateStrategy);
