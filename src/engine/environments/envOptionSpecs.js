@@ -61,6 +61,51 @@ const envOptionSpecs = {
       },
     ],
   },
+  TicTacToe: {
+    envName: "TicTacToe",
+    description:
+      "Turn-based Tic-Tac-Toe environment with configurable rewards and invalid move behavior.",
+    params: [
+      {
+        key: "rounds",
+        type: "integer",
+        default: 9,
+        min: 1,
+        max: 9,
+      },
+      {
+        key: "invalidMoveMode",
+        type: "string",
+        default: "forfeit",
+        enum: ["forfeit", "skip"],
+      },
+      {
+        key: "winReward",
+        type: "number",
+        default: 1,
+      },
+      {
+        key: "drawReward",
+        type: "number",
+        default: 0,
+      },
+      {
+        key: "lossPenalty",
+        type: "number",
+        default: -1,
+      },
+      {
+        key: "invalidMovePenalty",
+        type: "number",
+        default: -1,
+      },
+      {
+        key: "randomizeStart",
+        type: "boolean",
+        default: true,
+      },
+    ],
+  },
 };
 
 function getEnvOptionSpec(name) {

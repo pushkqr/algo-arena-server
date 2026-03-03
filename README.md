@@ -51,6 +51,7 @@ src/
 Currently registered environment(s):
 
 - `AuctionHouse`
+- `TicTacToe`
 
 Environment registry lives in `src/engine/environments/index.js`.
 
@@ -169,6 +170,55 @@ Aggregated per-evaluation, per-agent rows (not per episode):
 
 Base URL: `http://localhost:<PORT>`
 
+### Meta (reference, unauthenticated)
+
+- `GET /api/meta/environment`
+  - Returns lightweight environment metadata for dynamic UI rendering.
+  - Query: `name` (optional, exact environment name).
+  - Response shape is always `{ environments: [...], version, ttlSeconds }`.
+  - Adds cache header: `Cache-Control: public, max-age=300`.
+
+Example (all environments):
+
+```json
+{
+  "environments": [
+    {
+      "name": "AuctionHouse",
+      "label": "Auction House",
+      "enabled": true,
+      "supports": {
+        "strategies": true,
+        "leaderboard": true,
+        "evaluations": true,
+        "sandboxRun": true
+      },
+      "description": "Auction environment with configurable pricing and budget dynamics."
+    },
+    {
+      "name": "TicTacToe",
+      "label": "Tic Tac Toe",
+      "enabled": true,
+      "supports": {
+        "strategies": true,
+        "leaderboard": true,
+        "evaluations": true,
+        "sandboxRun": true
+      },
+      "description": "Turn-based Tic-Tac-Toe environment with configurable rewards and invalid move behavior."
+    }
+  ],
+  "version": "2026-03-03",
+  "ttlSeconds": 300
+}
+```
+
+Errors:
+
+- `400` invalid `name` format
+- `404` environment not found (when querying `name`)
+- `500` internal error
+
 ### Strategies (user-scoped)
 
 - `GET /api/strategies`
@@ -178,6 +228,52 @@ Base URL: `http://localhost:<PORT>`
   - Runs a short, isolated strategy sandbox simulation for UX/debugging.
   - Body: `envName` (required), `source` (required), `metadata` (optional), `runOptions` (optional).
   - `runOptions`: `episodes` (max `1`, default `1`), `maxSteps`, `seed`, `traceMode` (`none | summary | full`).
+
+TicTacToe sandbox body (example):
+
+```json
+{
+  "envName": "TicTacToe",
+  "source": "export default { reset(){}, observe:(obs)=>obs||{}, act:(obs)=>{ const moves = Array.isArray(obs?.legalMoves) ? obs.legalMoves : []; return moves.length ? moves[0] : 0; } }",
+  "runOptions": {
+    "episodes": 1,
+    "maxSteps": 9,
+    "traceMode": "summary"
+  }
+}
+```
+
+TicTacToe observation shape (passed to `observe(obs)` and `act(obs)`):
+
+```json
+{
+  "round": 2,
+  "board": ["X", null, "O", null, null, null, null, null, null],
+  "mySymbol": "X",
+  "currentPlayerId": "sandbox-agent",
+  "legalMoves": [1, 3, 4, 5, 6, 7, 8],
+  "isMyTurn": true,
+  "lastMove": { "playerId": "sandbox-agent", "symbol": "X", "index": 0 },
+  "winnerId": null,
+  "done": false,
+  "myReward": 0,
+  "info": {
+    "reason": "move_applied",
+    "requestedMove": 0,
+    "invalidMoveBy": null
+  }
+}
+```
+
+TicTacToe env options:
+
+- `rounds` (1-9, default `9`)
+- `invalidMoveMode` (`forfeit` or `skip`, default `forfeit`)
+- `winReward` (default `1`)
+- `drawReward` (default `0`)
+- `lossPenalty` (default `-1`)
+- `invalidMovePenalty` (default `-1`)
+- `randomizeStart` (default `true`)
 - `POST /api/strategies`
 - `PATCH /api/strategies/:strategyId`
 - `DELETE /api/strategies/:strategyId`

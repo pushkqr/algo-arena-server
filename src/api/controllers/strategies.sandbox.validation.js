@@ -5,6 +5,7 @@ const SANDBOX_MAX_EPISODES = 1;
 const SANDBOX_MAX_STEPS_CAP = 1000;
 const SANDBOX_DEFAULT_MAX_STEPS_BY_ENV = {
   AuctionHouse: 200,
+  TicTacToe: 9,
 };
 const TRACE_MODES = new Set(["none", "summary", "full"]);
 

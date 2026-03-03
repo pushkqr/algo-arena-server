@@ -85,14 +85,18 @@ async function runSingleSandboxEpisode({
         ? observations[SANDBOX_AGENT_ID]
         : null;
     if (!rawObservation || typeof rawObservation !== "object") {
-      const fallbackBudget =
-        env && env.opts && Number.isFinite(Number(env.opts.defaultBudget))
-          ? Number(env.opts.defaultBudget)
-          : SANDBOX_DEFAULT_STARTING_BUDGET;
-      rawObservation = {
-        remainingBudget: fallbackBudget,
-        startingBudget: fallbackBudget,
-      };
+      if (envName === "AuctionHouse") {
+        const fallbackBudget =
+          env && env.opts && Number.isFinite(Number(env.opts.defaultBudget))
+            ? Number(env.opts.defaultBudget)
+            : SANDBOX_DEFAULT_STARTING_BUDGET;
+        rawObservation = {
+          remainingBudget: fallbackBudget,
+          startingBudget: fallbackBudget,
+        };
+      } else {
+        rawObservation = {};
+      }
     }
 
     let observed = rawObservation;

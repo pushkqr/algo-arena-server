@@ -6,6 +6,7 @@ const {
 
 const envModules = {
   AuctionHouse: require("./AuctionHouse"),
+  TicTacToe: require("./TicTacToe"),
 };
 
 function normalizeFactory(mod) {
