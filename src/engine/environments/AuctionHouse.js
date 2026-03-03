@@ -1,4 +1,5 @@
 const { BaseEnvironment } = require("./Environment");
+const { create: createRng } = require("../rng/SeededRNG");
 const SiLog = require("../../utils/SiLog");
 
 const DEFAULT_OPTS = {
@@ -265,4 +266,69 @@ class AuctionHouse extends BaseEnvironment {
   }
 }
 
-module.exports = (seed, opts) => new AuctionHouse(seed, opts);
+function deriveSeed(evaluationId, seed, suffix) {
+  return createRng(`${evaluationId}:${seed}`).derive(String(suffix)).seed;
+}
+
+function shuffleInPlace(values, seedStr) {
+  const rng = createRng(String(seedStr));
+  return rng.shuffleInPlace(values);
+}
+
+function replicateAgents(agents, totalSlots) {
+  const repetitions = Math.ceil(totalSlots / agents.length);
+  const out = [];
+  for (let idx = 0; idx < repetitions; idx += 1) {
+    out.push(...agents.map((agent) => ({ ...agent })));
+  }
+  return out.slice(0, totalSlots);
+}
+
+function chunk(array, size) {
+  const out = [];
+  for (let idx = 0; idx < array.length; idx += size) {
+    out.push(array.slice(idx, idx + size));
+  }
+  return out;
+}
+
+function buildAuctionHousePools(config = {}) {
+  if (!Array.isArray(config.agents) || config.agents.length === 0) {
+    throw new Error("config.agents must be a non-empty array");
+  }
+
+  const poolSize = Number(config.poolSize);
+  if (!Number.isInteger(poolSize) || poolSize <= 0) {
+    throw new Error("config.poolSize invalid.");
+  }
+
+  const poolCount = config.poolCount
+    ? Number(config.poolCount)
+    : Math.ceil(config.agents.length / poolSize);
+  const totalSlots = poolCount * poolSize;
+
+  const evaluationId = String(config.evaluationId);
+  const seed = String(config.seed);
+
+  const flat = replicateAgents(config.agents, totalSlots);
+  if (config.shuffle !== false) {
+    shuffleInPlace(flat, `${evaluationId}:${seed}:shuffle`);
+  }
+
+  const groups = chunk(flat, poolSize);
+  const pools = groups.map((agentsChunk, index) => ({
+    poolId: `${evaluationId}:pool:${index}`,
+    agents: agentsChunk,
+    seed: deriveSeed(evaluationId, seed, `pool:${index}`),
+  }));
+
+  return pools;
+}
+
+function createAuctionHouse(seed, opts) {
+  return new AuctionHouse(seed, opts);
+}
+
+createAuctionHouse.buildPools = buildAuctionHousePools;
+
+module.exports = createAuctionHouse;

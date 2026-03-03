@@ -1,4 +1,5 @@
 const { BaseEnvironment } = require("./Environment");
+const { create: createRng } = require("../rng/SeededRNG");
 
 const DEFAULT_OPTS = {
   rounds: 9,
@@ -49,6 +50,93 @@ function uniqueIds(ids = []) {
   );
 }
 
+function deriveSeed(evaluationId, seed, suffix) {
+  return createRng(`${evaluationId}:${seed}`).derive(String(suffix)).seed;
+}
+
+function shuffleInPlace(values, seedStr) {
+  const rng = createRng(String(seedStr));
+  return rng.shuffleInPlace(values);
+}
+
+function buildBalancedTicTacToePools(config = {}) {
+  if (!Array.isArray(config.agents) || config.agents.length < 2) {
+    throw new Error("TicTacToe requires at least 2 agents");
+  }
+
+  const evaluationId = String(config.evaluationId);
+  const seed = String(config.seed);
+  const envOpts =
+    config.envOpts && typeof config.envOpts === "object" ? config.envOpts : {};
+
+  const pairingMode =
+    typeof envOpts.pairingMode === "string" && envOpts.pairingMode.trim()
+      ? envOpts.pairingMode.trim()
+      : "round_robin_balanced";
+  if (pairingMode !== "round_robin_balanced") {
+    throw new Error(
+      "TicTacToe supports envOpts.pairingMode='round_robin_balanced' only",
+    );
+  }
+
+  const startPlayerPolicy =
+    envOpts.startPlayerPolicy === "random_seeded"
+      ? "random_seeded"
+      : "alternate";
+
+  const gamesPerPair = Math.max(
+    1,
+    Math.floor(Number(envOpts.gamesPerPair) || 1),
+  );
+
+  const maxGames = Number.isFinite(Number(envOpts.maxGames))
+    ? Math.max(1, Math.floor(Number(envOpts.maxGames)))
+    : null;
+
+  const agents = config.agents.map((agent) => ({ ...agent }));
+  const pairs = [];
+  for (let i = 0; i < agents.length; i += 1) {
+    for (let j = i + 1; j < agents.length; j += 1) {
+      pairs.push([agents[i], agents[j]]);
+    }
+  }
+
+  if (!pairs.length) {
+    throw new Error("TicTacToe balanced scheduler produced no pairs");
+  }
+
+  shuffleInPlace(pairs, `${evaluationId}:${seed}:ttt:pairs`);
+
+  const games = [];
+  for (let cycle = 0; cycle < gamesPerPair; cycle += 1) {
+    for (let pairIndex = 0; pairIndex < pairs.length; pairIndex += 1) {
+      const [first, second] = pairs[pairIndex];
+      const shouldSwap =
+        startPlayerPolicy === "alternate" && (cycle + pairIndex) % 2 === 1;
+      games.push({
+        agents: shouldSwap ? [second, first] : [first, second],
+      });
+    }
+  }
+
+  shuffleInPlace(games, `${evaluationId}:${seed}:ttt:games`);
+
+  const selectedGames = maxGames ? games.slice(0, maxGames) : games;
+  const pools = selectedGames.map((game, index) => ({
+    poolId: `${evaluationId}:pool:${index}`,
+    agents: game.agents,
+    seed: deriveSeed(evaluationId, seed, `ttt:game:${index}`),
+    envOpts: {
+      randomizeStart: startPlayerPolicy === "random_seeded",
+    },
+  }));
+
+  return {
+    pools,
+    episodesPerPool: 1,
+  };
+}
+
 class TicTacToe extends BaseEnvironment {
   constructor(seed, opts = {}) {
     super(seed, opts);
@@ -71,9 +159,7 @@ class TicTacToe extends BaseEnvironment {
 
   _ensurePlayers(actions = {}) {
     if (this.playerOrder.length) return;
-    const ids = uniqueIds(Object.keys(actions || {})).sort((a, b) =>
-      a < b ? -1 : a > b ? 1 : 0,
-    );
+    const ids = uniqueIds(Object.keys(actions || {}));
     this.playerOrder = ids;
     ids.forEach((id, index) => {
       const symbol = SYMBOLS[index] || `P${index + 1}`;
@@ -257,5 +343,10 @@ class TicTacToe extends BaseEnvironment {
     };
   }
 }
+function createTicTacToe(seed, opts) {
+  return new TicTacToe(seed, opts);
+}
 
-module.exports = (seed, opts) => new TicTacToe(seed, opts);
+createTicTacToe.buildPools = buildBalancedTicTacToePools;
+
+module.exports = createTicTacToe;

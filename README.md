@@ -55,6 +55,21 @@ Currently registered environment(s):
 
 Environment registry lives in `src/engine/environments/index.js`.
 
+### Environment scheduling hook
+
+Environments may optionally define a custom scheduling hook on the exported factory:
+
+`factory.buildPools(config) => pools[] | { pools, episodesPerPool }`
+
+Where each pool must contain:
+
+- `poolId` (string, unique per evaluation)
+- `agents` (non-empty array)
+- optional `seed` (string)
+- optional `envOpts` (object, merged into evaluation env options for that pool)
+
+If a custom hook is not provided, the default generic pool builder is used.
+
 ---
 
 ## Access model
@@ -274,6 +289,16 @@ TicTacToe env options:
 - `lossPenalty` (default `-1`)
 - `invalidMovePenalty` (default `-1`)
 - `randomizeStart` (default `true`)
+- `pairingMode` (`round_robin_balanced`, default `round_robin_balanced`)
+- `gamesPerPair` (integer >= `1`, default `1`)
+- `maxGames` (optional integer >= `1`)
+- `startPlayerPolicy` (`alternate` or `random_seeded`, default `alternate`)
+
+TicTacToe evaluation scheduling notes:
+
+- Uses TicTacToe-specific balanced round-robin pairing when `pairingMode=round_robin_balanced`.
+- Generic evaluation knobs (`poolSize`, `poolCount`, `episodesPerPool`, `shuffle`) are ignored in this mode.
+- Number of games is derived from strategy count and pairing config (`gamesPerPair`, optional `maxGames`).
 - `POST /api/strategies`
 - `PATCH /api/strategies/:strategyId`
 - `DELETE /api/strategies/:strategyId`

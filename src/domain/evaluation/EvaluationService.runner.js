@@ -10,6 +10,48 @@ const {
   buildFailedEpisodeAgentResult,
 } = require("./EvaluationService.helpers");
 
+function validatePoolsOrThrow(pools, evaluationId) {
+  if (!Array.isArray(pools) || pools.length === 0) {
+    throw new Error("pool builder produced no pools");
+  }
+
+  const seenPoolIds = new Set();
+  for (let idx = 0; idx < pools.length; idx += 1) {
+    const pool = pools[idx];
+
+    if (!pool || typeof pool !== "object") {
+      throw new Error(`invalid pool at index ${idx}`);
+    }
+
+    const poolId =
+      typeof pool.poolId === "string" && pool.poolId.trim()
+        ? pool.poolId.trim()
+        : `${evaluationId}:pool:${idx}`;
+
+    if (seenPoolIds.has(poolId)) {
+      throw new Error(`duplicate poolId '${poolId}' returned by pool builder`);
+    }
+    seenPoolIds.add(poolId);
+    pool.poolId = poolId;
+
+    if (!Array.isArray(pool.agents) || pool.agents.length === 0) {
+      throw new Error(`pool '${poolId}' has no agents`);
+    }
+
+    for (const agent of pool.agents) {
+      if (!agent || typeof agent !== "object") {
+        throw new Error(`pool '${poolId}' contains invalid agent entry`);
+      }
+      const id = agent.id || agent.agentId || agent.name;
+      if (typeof id !== "string" || !id.trim()) {
+        throw new Error(`pool '${poolId}' contains agent without id`);
+      }
+    }
+  }
+
+  return pools;
+}
+
 async function runEvaluationEpisodes({
   evaluationId,
   seed,
@@ -20,17 +62,59 @@ async function runEvaluationEpisodes({
   episodesPerPool,
   normalizedAgents,
   topEnvFactory,
+  envName,
   envOpts,
   abortSignal,
 }) {
-  let pools = PoolBuilder.buildPools({
-    evaluationId,
-    seed,
-    agents: normalizedAgents,
-    poolSize,
-    poolCount,
-    shuffle,
-  });
+  const customPoolBuilder =
+    topEnvFactory && typeof topEnvFactory.buildPools === "function"
+      ? topEnvFactory.buildPools
+      : null;
+
+  let pools;
+  let effectiveEpisodesPerPool = episodesPerPool;
+
+  if (customPoolBuilder) {
+    const customBuildResult = customPoolBuilder({
+      evaluationId,
+      seed,
+      rounds,
+      agents: normalizedAgents,
+      poolSize,
+      poolCount,
+      shuffle,
+      episodesPerPool,
+      envName,
+      envOpts,
+    });
+
+    if (Array.isArray(customBuildResult)) {
+      pools = customBuildResult;
+    } else if (customBuildResult && Array.isArray(customBuildResult.pools)) {
+      pools = customBuildResult.pools;
+      if (
+        Number.isInteger(Number(customBuildResult.episodesPerPool)) &&
+        Number(customBuildResult.episodesPerPool) > 0
+      ) {
+        effectiveEpisodesPerPool = Number(customBuildResult.episodesPerPool);
+      }
+    } else {
+      throw new Error(
+        "env buildPools must return pools[] or { pools, episodesPerPool? }",
+      );
+    }
+  } else {
+    pools = PoolBuilder.buildPools({
+      evaluationId,
+      seed,
+      agents: normalizedAgents,
+      poolSize,
+      poolCount,
+      shuffle,
+    });
+  }
+
+  pools = validatePoolsOrThrow(pools, evaluationId);
 
   const episodes = [];
 
@@ -38,7 +122,7 @@ async function runEvaluationEpisodes({
     throwIfAborted(abortSignal);
 
     const pool = pools[pIndex];
-    for (let e = 0; e < episodesPerPool; e++) {
+    for (let e = 0; e < effectiveEpisodesPerPool; e++) {
       throwIfAborted(abortSignal);
 
       const episodeSeed = PoolBuilder.deriveSeed(

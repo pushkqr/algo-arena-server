@@ -65,6 +65,7 @@ const EvaluationService = {
         episodesPerPool,
         normalizedAgents,
         topEnvFactory,
+        envName,
         envOpts,
         abortSignal,
       });

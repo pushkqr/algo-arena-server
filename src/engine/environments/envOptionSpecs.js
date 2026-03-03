@@ -104,6 +104,31 @@ const envOptionSpecs = {
         type: "boolean",
         default: true,
       },
+      {
+        key: "pairingMode",
+        type: "string",
+        default: "round_robin_balanced",
+        enum: ["round_robin_balanced"],
+      },
+      {
+        key: "gamesPerPair",
+        type: "integer",
+        default: 1,
+        min: 1,
+      },
+      {
+        key: "maxGames",
+        type: "integer",
+        default: null,
+        nullable: true,
+        min: 1,
+      },
+      {
+        key: "startPlayerPolicy",
+        type: "string",
+        default: "alternate",
+        enum: ["alternate", "random_seeded"],
+      },
     ],
   },
 };
