@@ -79,6 +79,7 @@ async function runSandboxStrategy(req, res) {
           error: "RUN_TIMEOUT",
           message: "Sandbox run exceeded time limit",
           runId,
+          details: err && err.details ? err.details : undefined,
         });
       }
       if (err && err.code === "RUN_MEMORY_LIMIT") {
@@ -87,9 +88,33 @@ async function runSandboxStrategy(req, res) {
           error: "RUN_FAILED",
           message: "Sandbox run exceeded memory limit",
           runId,
+          details: err && err.details ? err.details : undefined,
         });
       }
-      throw err;
+      if (
+        err &&
+        (err.code === "RUN_STRATEGY_RUNTIME" ||
+          err.code === "RUN_ENVIRONMENT_RUNTIME" ||
+          err.code === "RUN_ENVIRONMENT_INVALID")
+      ) {
+        return res.status(500).json({
+          ok: false,
+          error: "RUN_FAILED",
+          message: err.message || "Sandbox runtime failure",
+          runId,
+          details: err.details || {},
+        });
+      }
+
+      return res.status(500).json({
+        ok: false,
+        error: "RUN_FAILED",
+        message: "Unhandled strategy runtime error",
+        runId,
+        details: {
+          message: err && err.message ? err.message : String(err),
+        },
+      });
     }
 
     const response = {
@@ -138,6 +163,9 @@ async function runSandboxStrategy(req, res) {
       error: "RUN_FAILED",
       message: "Unhandled strategy runtime error",
       runId,
+      details: {
+        message: err && err.message ? err.message : String(err),
+      },
     });
   }
 }

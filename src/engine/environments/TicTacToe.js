@@ -28,6 +28,14 @@ function asNumber(value, fallback) {
   return Number.isFinite(num) ? num : fallback;
 }
 
+function asOptionalPositiveInt(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  const floored = Math.floor(num);
+  return floored > 0 ? floored : null;
+}
+
 function normalizeOpts(opts = {}) {
   const merged = { ...DEFAULT_OPTS, ...(opts || {}) };
   merged.rounds = Math.max(
@@ -89,9 +97,7 @@ function buildBalancedTicTacToePools(config = {}) {
     Math.floor(Number(envOpts.gamesPerPair) || 1),
   );
 
-  const maxGames = Number.isFinite(Number(envOpts.maxGames))
-    ? Math.max(1, Math.floor(Number(envOpts.maxGames)))
-    : null;
+  const maxGames = asOptionalPositiveInt(envOpts.maxGames);
 
   const agents = config.agents.map((agent) => ({ ...agent }));
   const pairs = [];

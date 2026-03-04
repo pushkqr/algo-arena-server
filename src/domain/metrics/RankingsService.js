@@ -20,6 +20,26 @@ function safeVal(obj, key) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function areEquivalentForRanking(A, B, cfg, criteria) {
+  if (!A || !B) return false;
+
+  if (typeof cfg.customScore === "function") {
+    const sa = Number(cfg.customScore(A.metric));
+    const sb = Number(cfg.customScore(B.metric));
+    if (sa !== sb) return false;
+  }
+
+  for (const key of criteria) {
+    const av = safeVal(A.metric, key);
+    const bv = safeVal(B.metric, key);
+    if (av !== bv) return false;
+  }
+
+  const fa = safeVal(A.metric, "failures");
+  const fb = safeVal(B.metric, "failures");
+  return fa === fb;
+}
+
 const RankingsService = {
   rank(metrics = {}, opts = {}) {
     const cfg = Object.assign({}, defaultOpts, opts);
@@ -63,10 +83,24 @@ const RankingsService = {
       return A.idx - B.idx;
     });
 
+    let previousEntry = null;
+    let previousRank = 0;
+
     return entries.map((e, i) => {
+      let assignedRank = i + 1;
+      if (
+        previousEntry &&
+        areEquivalentForRanking(e, previousEntry, cfg, criteria)
+      ) {
+        assignedRank = previousRank;
+      }
+
+      previousEntry = e;
+      previousRank = assignedRank;
+
       const m = e.metric || {};
       return {
-        rank: i + 1,
+        rank: assignedRank,
         agentId: e.id,
         // legacy fields
         totalReturn: safeVal(m, "totalReturn"),

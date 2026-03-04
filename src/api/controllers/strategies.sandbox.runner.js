@@ -4,6 +4,16 @@ const SANDBOX_MAX_STEPS_CAP = 1000;
 const SANDBOX_AGENT_ID = "sandbox-agent";
 const SANDBOX_DEFAULT_STARTING_BUDGET = 100;
 
+function createSandboxError(code, message, details = {}, cause) {
+  const err = new Error(message);
+  err.code = code;
+  err.details = details;
+  if (cause) {
+    err.cause = cause;
+  }
+  return err;
+}
+
 function sanitizeTraceEntry(step, observation, action, reward, info) {
   return {
     step,
@@ -24,9 +34,11 @@ function ensureMemoryWithinLimit() {
   const heapUsed =
     process && process.memoryUsage ? process.memoryUsage().heapUsed : 0;
   if (heapUsed > SANDBOX_MEMORY_LIMIT_BYTES) {
-    const err = new Error("Sandbox run exceeded memory limit");
-    err.code = "RUN_MEMORY_LIMIT";
-    throw err;
+    throw createSandboxError(
+      "RUN_MEMORY_LIMIT",
+      "Sandbox run exceeded memory limit",
+      { heapUsed, limit: SANDBOX_MEMORY_LIMIT_BYTES },
+    );
   }
 }
 
@@ -35,7 +47,13 @@ function callStrategyMethodWithTimeout(method, args, timeoutMs, methodName) {
     Promise.resolve().then(() => method(...args)),
     new Promise((_, reject) => {
       setTimeout(() => {
-        reject(new Error(`strategy ${methodName} timed out`));
+        reject(
+          createSandboxError(
+            "RUN_TIMEOUT",
+            `strategy ${methodName} timed out`,
+            { methodName, timeoutMs },
+          ),
+        );
       }, timeoutMs);
     }),
   ]);
@@ -59,7 +77,11 @@ async function runSingleSandboxEpisode({
     typeof env.reset !== "function" ||
     typeof env.step !== "function"
   ) {
-    throw new Error(`invalid environment factory for ${envName}`);
+    throw createSandboxError(
+      "RUN_ENVIRONMENT_INVALID",
+      `invalid environment factory for ${envName}`,
+      { envName },
+    );
   }
 
   const trace = [];
@@ -68,7 +90,20 @@ async function runSingleSandboxEpisode({
   ensureMemoryWithinLimit();
 
   if (typeof strategy.reset === "function") {
-    await callStrategyMethodWithTimeout(strategy.reset, [], 200, "reset");
+    try {
+      await callStrategyMethodWithTimeout(strategy.reset, [], 200, "reset");
+    } catch (err) {
+      if (err && err.code === "RUN_TIMEOUT") throw err;
+      throw createSandboxError(
+        "RUN_STRATEGY_RUNTIME",
+        "Strategy reset failed",
+        {
+          phase: "reset",
+          message: err && err.message ? err.message : String(err),
+        },
+        err,
+      );
+    }
   }
 
   let observations = await Promise.resolve(env.reset());
@@ -101,26 +136,69 @@ async function runSingleSandboxEpisode({
 
     let observed = rawObservation;
     if (typeof strategy.observe === "function") {
-      observed = await callStrategyMethodWithTimeout(
-        strategy.observe,
-        [rawObservation],
+      try {
+        observed = await callStrategyMethodWithTimeout(
+          strategy.observe,
+          [rawObservation],
+          50,
+          "observe",
+        );
+      } catch (err) {
+        if (err && err.code === "RUN_TIMEOUT") throw err;
+        throw createSandboxError(
+          "RUN_STRATEGY_RUNTIME",
+          "Strategy observe failed",
+          {
+            phase: "observe",
+            step: steps,
+            message: err && err.message ? err.message : String(err),
+          },
+          err,
+        );
+      }
+    }
+
+    let action;
+    try {
+      action = await callStrategyMethodWithTimeout(
+        strategy.act,
+        [observed],
         50,
-        "observe",
+        "act",
+      );
+    } catch (err) {
+      if (err && err.code === "RUN_TIMEOUT") throw err;
+      throw createSandboxError(
+        "RUN_STRATEGY_RUNTIME",
+        "Strategy act failed",
+        {
+          phase: "act",
+          step: steps,
+          message: err && err.message ? err.message : String(err),
+        },
+        err,
       );
     }
 
-    const action = await callStrategyMethodWithTimeout(
-      strategy.act,
-      [observed],
-      50,
-      "act",
-    );
-
-    const stepResult = await Promise.resolve(
-      env.step({
-        [SANDBOX_AGENT_ID]: action,
-      }),
-    );
+    let stepResult;
+    try {
+      stepResult = await Promise.resolve(
+        env.step({
+          [SANDBOX_AGENT_ID]: action,
+        }),
+      );
+    } catch (err) {
+      throw createSandboxError(
+        "RUN_ENVIRONMENT_RUNTIME",
+        "Environment step failed",
+        {
+          phase: "env.step",
+          step: steps,
+          message: err && err.message ? err.message : String(err),
+        },
+        err,
+      );
+    }
 
     const rewards =
       stepResult && stepResult.rewards && typeof stepResult.rewards === "object"
@@ -190,9 +268,11 @@ async function runSandboxEpisodeWithLimits(options) {
     executePromise,
     new Promise((_, reject) => {
       setTimeout(() => {
-        const timeoutErr = new Error("Sandbox run exceeded time limit");
-        timeoutErr.code = "RUN_TIMEOUT";
-        reject(timeoutErr);
+        reject(
+          createSandboxError("RUN_TIMEOUT", "Sandbox run exceeded time limit", {
+            timeoutMs: SANDBOX_TIMEOUT_MS,
+          }),
+        );
       }, SANDBOX_TIMEOUT_MS);
     }),
   ]);

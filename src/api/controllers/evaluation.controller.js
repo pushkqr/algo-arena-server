@@ -13,6 +13,45 @@ const {
 const { resolveAgentsFromStrategies } = require("./evaluation.agentResolver");
 const { saveQueuedRecord } = require("./evaluation.persistence");
 
+const BALANCED_DEFAULTS_BY_ENV = {
+  AuctionHouse: {
+    rounds: 12,
+    reserve: 5,
+    defaultBudget: 250,
+    maxConsecutiveWins: 2,
+    auctionType: "second",
+  },
+  TicTacToe: {
+    pairingMode: "round_robin_balanced",
+    gamesPerPair: 2,
+    startPlayerPolicy: "alternate",
+    invalidMoveMode: "forfeit",
+  },
+};
+
+function applyBalancedDefaultsToSpec(spec) {
+  if (!spec || typeof spec !== "object") return spec;
+
+  const envName = typeof spec.envName === "string" ? spec.envName : "";
+  const balancedDefaults = BALANCED_DEFAULTS_BY_ENV[envName] || {};
+  const params = Array.isArray(spec.params) ? spec.params : [];
+
+  return {
+    ...spec,
+    defaultProfile: "balanced",
+    params: params.map((param) => {
+      const key = param && typeof param.key === "string" ? param.key : "";
+      if (!key || !(key in balancedDefaults)) {
+        return param;
+      }
+      return {
+        ...param,
+        default: balancedDefaults[key],
+      };
+    }),
+  };
+}
+
 async function startEvaluation(req, res) {
   try {
     const body = req.body || {};
@@ -62,10 +101,6 @@ async function startEvaluation(req, res) {
 
     await saveQueuedRecord(queuedRecord);
 
-    // const { promise } = evaluationEngine.startEvaluation(config);
-    // const result = await promise;
-    // console.log("metrics", JSON.stringify(result.metrics, null, 2));
-
     const queued = evaluationEngine.startEvaluation(config);
     if (queued && queued.promise) {
       queued.promise.catch((err) => {
@@ -100,11 +135,13 @@ async function getEnvironmentOptions(req, res) {
           availableEnvironments: Environments.listEnvs(),
         });
       }
-      return res.json(spec);
+      return res.json(applyBalancedDefaultsToSpec(spec));
     }
 
     return res.json({
-      environments: Environments.listEnvOptionSpecs(),
+      environments: Environments.listEnvOptionSpecs().map((spec) =>
+        applyBalancedDefaultsToSpec(spec),
+      ),
     });
   } catch (err) {
     console.error("failed to load environment options", err);
