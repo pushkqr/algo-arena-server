@@ -1,4 +1,6 @@
 const firebaseAdmin = require("../firebaseAdmin");
+const DB = require("../../utils/DB");
+const UsernameModel = require("../../persistence/models/Username.model");
 
 const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
 const DEFAULT_RESERVED_USERNAMES = [
@@ -14,11 +16,6 @@ const DEFAULT_RESERVED_USERNAMES = [
   "undefined",
   "me",
 ];
-
-function getUsernamesCollectionName() {
-  const value = String(process.env.FIRESTORE_USERNAMES_COLLECTION || "").trim();
-  return value || "usernames";
-}
 
 function parseCsvEnv(value) {
   return String(value || "")
@@ -56,20 +53,15 @@ function validateUsername(username, normalized) {
   return null;
 }
 
-function getFirestore() {
-  return firebaseAdmin.firestore();
-}
-
-function usernamesCollection(db) {
-  return db.collection(getUsernamesCollectionName());
+function isDuplicateKeyError(err) {
+  return !!(err && err.code === 11000);
 }
 
 function isUsernameTakenByAnotherUid(doc, uid) {
-  if (!doc || !doc.exists) {
+  if (!doc) {
     return false;
   }
-  const data = doc.data() || {};
-  return data.uid && data.uid !== uid;
+  return doc.ownerId && doc.ownerId !== uid;
 }
 
 async function checkUsernameAvailability(req, res) {
@@ -84,16 +76,17 @@ async function checkUsernameAvailability(req, res) {
       });
     }
 
-    const db = getFirestore();
-    const docRef = usernamesCollection(db).doc(normalized);
-    const snap = await docRef.get();
-    const takenByAnother = isUsernameTakenByAnotherUid(snap, req.userId);
+    await DB.connect();
+    const usernameDoc = await UsernameModel.findById(normalized)
+      .select("_id ownerId")
+      .lean();
+    const takenByAnother = isUsernameTakenByAnotherUid(usernameDoc, req.userId);
 
     return res.json({
       username,
       normalized,
       available: !takenByAnother,
-      ownedByRequester: !!snap.exists && !takenByAnother,
+      ownedByRequester: !!usernameDoc && !takenByAnother,
     });
   } catch (err) {
     console.error("failed to check username availability", err);
@@ -106,6 +99,10 @@ async function checkUsernameAvailability(req, res) {
 
 async function updateMyUsername(req, res) {
   try {
+    if (!req.userId) {
+      return res.status(401).json({ error: "user authentication required" });
+    }
+
     const { username, normalized } = normalizeUsername(req.body?.username);
     const validationError = validateUsername(username, normalized);
     if (validationError) {
@@ -116,46 +113,39 @@ async function updateMyUsername(req, res) {
       });
     }
 
-    const db = getFirestore();
-    const coll = usernamesCollection(db);
-    const targetRef = coll.doc(normalized);
+    await DB.connect();
 
-    let usernameTaken = false;
+    const ownedDoc = await UsernameModel.findOne({ ownerId: req.userId })
+      .select("_id")
+      .lean();
+    if (ownedDoc && ownedDoc._id !== normalized) {
+      await UsernameModel.deleteOne({ _id: ownedDoc._id, ownerId: req.userId });
+    }
 
-    await db.runTransaction(async (tx) => {
-      const [targetSnap, ownedSnap] = await Promise.all([
-        tx.get(targetRef),
-        tx.get(coll.where("uid", "==", req.userId)),
-      ]);
-
-      if (isUsernameTakenByAnotherUid(targetSnap, req.userId)) {
-        usernameTaken = true;
-        return;
-      }
-
-      for (const doc of ownedSnap.docs || []) {
-        if (doc.id !== normalized) {
-          tx.delete(doc.ref);
-        }
-      }
-
-      tx.set(
-        targetRef,
+    try {
+      await UsernameModel.findOneAndUpdate(
+        { _id: normalized, ownerId: req.userId },
         {
-          uid: req.userId,
-          username,
-          updatedAt: new Date(),
+          $set: {
+            ownerId: req.userId,
+            username,
+          },
         },
-        { merge: true },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+        },
       );
-    });
-
-    if (usernameTaken) {
-      return res.status(409).json({
-        error: "username_taken",
-        username,
-        normalized,
-      });
+    } catch (writeErr) {
+      if (isDuplicateKeyError(writeErr)) {
+        return res.status(409).json({
+          error: "username_taken",
+          username,
+          normalized,
+        });
+      }
+      throw writeErr;
     }
 
     let authProfileUpdated = true;
@@ -163,7 +153,6 @@ async function updateMyUsername(req, res) {
       await firebaseAdmin.auth().updateUser(req.userId, {
         displayName: username,
       });
-      console.log(await firebaseAdmin.auth().getUser(req.userId));
     } catch (syncErr) {
       authProfileUpdated = false;
       console.error("failed to sync Firebase displayName", syncErr);
