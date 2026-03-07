@@ -76,6 +76,8 @@ If a custom hook is not provided, the default generic pool builder is used.
 
 - **Strategies API**: authenticated users can access **only their own** strategies.
 - **Results API**: authenticated users can access **only their own** result rows (`agentOwnerId`).
+- **Users API**: username updates require authentication; availability check is public (optional user context).
+- **Leaderboard API**: public.
 - **Evaluations API**: authenticated **service user only**.
 
 Service-user authorization is controlled by one or more of:
@@ -101,8 +103,6 @@ MONGO_URI=mongodb://localhost:27017/algo-arena
 # JSON string for service account credentials
 FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account", ...}
 
-# Firestore username registry
-FIRESTORE_USERNAMES_COLLECTION=usernames
 # Comma-separated reserved usernames (optional)
 USERNAME_RESERVED_WORDS=
 
@@ -178,6 +178,20 @@ Aggregated per-evaluation, per-agent rows (not per episode):
 - `evaluationId`, `agentId`, `agentOwnerId`
 - `rank`
 - aggregate metrics (`totalReturn`, `averageReturn`, `failRate`, etc.)
+
+### `usernames`
+
+Mongo-backed username registry:
+
+- `_id` = normalized username (lowercase)
+- `ownerId` = user uid
+- `username` = display/original username
+- timestamps: `createdAt`, `updatedAt`
+
+Important constraints:
+
+- Unique `_id` (normalized username)
+- Unique `ownerId` (one username per user)
 
 ---
 
@@ -418,14 +432,16 @@ Example:
 GET /api/results?envName=AuctionHouse&limit=20&skip=0
 ```
 
-### Users (user-scoped)
+### Users (public + user-scoped)
 
 - `GET /api/users/username-availability?username=<candidate>`
-  - Validates and checks username availability in Firestore username registry.
+  - Public endpoint (optional auth context if bearer token is sent).
+  - Validates and checks username availability in Mongo username registry.
   - Returns: `username`, `normalized`, `available`, `ownedByRequester`.
 - `PUT /api/users/me/username`
   - Body: `{ "username": "new_name" }`
-  - Claims/updates username transactionally in Firestore collection (`usernames` by default).
+  - Requires authenticated user.
+  - Claims/updates username in Mongo `usernames` collection.
   - Syncs Firebase Auth `displayName` as best-effort; response includes `authProfileUpdated`.
 
 Username rules:
@@ -434,10 +450,11 @@ Username rules:
 - Must match `^[a-z0-9_]{3,20}$`.
 - Reserved words are blocked (`USERNAME_RESERVED_WORDS` + built-in defaults).
 
-### Leaderboard (user-scoped)
+### Leaderboard (public)
 
 - `GET /api/leaderboard/evaluations`
   - Global leaderboard rows for a completed evaluation (not restricted to requester-owned strategies).
+  - Public endpoint (auth not required).
   - Requires `envName` (latest completed evaluation for that environment) or `evaluationId` (specific completed evaluation).
   - Query: `envName`, `evaluationId`, `limit`, `skip`
   - Each leaderboard row includes `ownerProfile.username` only.
